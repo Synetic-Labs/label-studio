@@ -1,6 +1,6 @@
 import Konva from "konva";
 import { memo, useContext, useEffect, useMemo } from "react";
-import { Group, Line } from "react-konva";
+import { Circle, Group, Line } from "react-konva";
 import { destroy, detach, getRoot, isAlive, types } from "mobx-state-tree";
 
 import Constants from "../core/Constants";
@@ -33,6 +33,9 @@ const Model = types
   .volatile(() => ({
     mouseOverStartPoint: false,
     selectedPoint: null,
+    // Live pointer position while drawing (internal 0-100 coords), used to render
+    // the dashed "ghost" segment from the last placed point to the cursor/finger.
+    ghostPoint: null,
     hideable: true,
     _supportsTransform: true,
     useTransformer: true,
@@ -95,6 +98,15 @@ const Model = types
        */
       setMouseOverStartPoint(value) {
         self.mouseOverStartPoint = value;
+      },
+
+      // Update / clear the live ghost-line cursor position (internal coords).
+      setGhostPoint(point) {
+        self.ghostPoint = point;
+      },
+
+      clearGhostPoint() {
+        self.ghostPoint = null;
       },
 
       // @todo not used
@@ -499,6 +511,53 @@ const Edges = memo(
   }),
 );
 
+/**
+ * Dashed "ghost" segment drawn from the last placed point to the live pointer
+ * position while the polygon is being drawn. Gives the user a preview of where
+ * the next segment will go on hover (mouse) or while holding (touch/pen),
+ * mirroring the Vector tool's ghost line.
+ */
+const PolygonGhostLine = observer(({ item, regionStyles }) => {
+  if (!item.isDrawing || item.closed) return null;
+
+  const ghost = item.ghostPoint;
+
+  if (!ghost || !item.points.length) return null;
+
+  const last = item.points[item.points.length - 1];
+  const gx = item.parent.internalToCanvasX(ghost.x);
+  const gy = item.parent.internalToCanvasY(ghost.y);
+  const zoom = item.parent.zoomScale || 1;
+
+  return (
+    <Group name="ghost" listening={false}>
+      <Line
+        points={[last.canvasX, last.canvasY, gx, gy]}
+        stroke={regionStyles.strokeColor}
+        strokeWidth={regionStyles.strokeWidth}
+        strokeScaleEnabled={false}
+        dash={[4, 4]}
+        perfectDrawEnabled={false}
+        shadowForStrokeEnabled={false}
+        listening={false}
+      />
+      <Circle
+        x={gx}
+        y={gy}
+        radius={5}
+        scaleX={1 / zoom}
+        scaleY={1 / zoom}
+        stroke={regionStyles.strokeColor}
+        strokeWidth={2}
+        fill="rgba(255,255,255,0.6)"
+        strokeScaleEnabled={false}
+        perfectDrawEnabled={false}
+        listening={false}
+      />
+    </Group>
+  );
+});
+
 const HtxPolygonView = ({ item, setShapeRef }) => {
   const { store } = item;
   const { suggestion } = useContext(ImageViewContext) ?? {};
@@ -630,6 +689,7 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
         />
       ) : null}
       {item.points && !item.isReadOnly() ? <Edges item={item} regionStyles={regionStyles} /> : null}
+      <PolygonGhostLine item={item} regionStyles={regionStyles} />
       {item.points && !item.isReadOnly() ? renderCircles(item.points) : null}
     </Group>
   );

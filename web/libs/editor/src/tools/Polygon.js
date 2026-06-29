@@ -120,9 +120,20 @@ const _Tool = types
         }
       },
 
+      // Update the ghost-line preview to follow the pointer while drawing.
+      // Fires on hover (mouse) and while moving during a press/hold (mouse/touch/pen).
+      mousemoveEv(_, [x, y]) {
+        const area = self.getCurrentArea();
+
+        if (area?.isDrawing && !area.closed) {
+          area.setGhostPoint({ x, y });
+        }
+      },
+
       _finishDrawing() {
         const { currentArea, control } = self;
 
+        self.currentArea?.clearGhostPoint?.();
         self.currentArea.notifyDrawingFinished();
         self.setDrawing(false);
         self.currentArea = null;
