@@ -76,9 +76,12 @@ const PolygonPointModel = types
       if (self.annotation.isReadOnly()) return;
       if (self.parent.closed) return;
 
-      if (self.parent.mouseOverStartPoint) {
-        self.parent.closePoly();
-      }
+      // `closePoly()` already guards against closing with fewer than 3 points.
+      // We intentionally do NOT require `mouseOverStartPoint` here: that flag is
+      // only ever set by a mouse hover (`onMouseOver`), so on touch/pen devices it
+      // stays false and the polygon could never be closed. Callers decide intent
+      // (e.g. a tap on the start point); this just performs the close.
+      self.parent.closePoly();
     },
 
     handleMouseOverStartPoint(ev) {
@@ -233,6 +236,27 @@ const PolygonPointView = observer(({ item, name }) => {
 
   const fill = item.selected ? "green" : "white";
 
+  // Shared handler for click (mouse/pen) and tap (touch) on a polygon point.
+  // Tapping the first point closes an open polygon; tapping any other point selects it.
+  const handlePointInteraction = (ev) => {
+    if (ev.evt.altKey) return item.parent.deletePoint(item);
+    if (item.parent.isDrawing && item.parent.points.length === 1) return;
+    // don't unselect polygon on point click/tap
+    ev.evt.preventDefault?.();
+    ev.cancelBubble = true;
+
+    // Close on the start point even without a prior hover, so touch/pen work.
+    const isStartPoint = item.index === 0;
+    const canCloseOnStartPoint = isStartPoint && !item.parent.closed && item.parent.points.length >= 3;
+
+    if (item.parent.mouseOverStartPoint || canCloseOnStartPoint) {
+      item.closeStartPoint();
+      item.parent.notifyDrawingFinished();
+    } else {
+      item.parent.setSelectedPoint(item);
+    }
+  };
+
   if (item.style === "circle") {
     return (
       <Circle
@@ -253,19 +277,8 @@ const PolygonPointView = observer(({ item, name }) => {
         onDblClick={() => {
           item.parent.deletePoint(item);
         }}
-        onClick={(ev) => {
-          if (ev.evt.altKey) return item.parent.deletePoint(item);
-          if (item.parent.isDrawing && item.parent.points.length === 1) return;
-          // don't unselect polygon on point click
-          ev.evt.preventDefault();
-          ev.cancelBubble = true;
-          if (item.parent.mouseOverStartPoint) {
-            item.closeStartPoint();
-            item.parent.notifyDrawingFinished();
-          } else {
-            item.parent.setSelectedPoint(item);
-          }
-        }}
+        onClick={handlePointInteraction}
+        onTap={handlePointInteraction}
         {...dragOpts}
         {...startPointAttr}
         draggable={!item.parent.isReadOnly() && draggable}
@@ -287,6 +300,11 @@ const PolygonPointView = observer(({ item, name }) => {
       perfectDrawEnabled={false}
       shadowForStrokeEnabled={false}
       dragOnTop={false}
+      onDblClick={() => {
+        item.parent.deletePoint(item);
+      }}
+      onClick={handlePointInteraction}
+      onTap={handlePointInteraction}
       {...dragOpts}
       {...startPointAttr}
       draggable={!item.parent.isReadOnly()}
