@@ -645,6 +645,25 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
 
   const stage = item.parent?.stageRef;
 
+  // Select the (closed) polygon. Bound to both click and tap so mouse, pen and touch
+  // all select it (Konva fires `click` for mouse and `tap` for touch).
+  const handleRegionClick = (e) => {
+    // create regions over another regions with Cmd/Ctrl pressed
+    if (item.parent.getSkipInteractions()) return;
+    if (item.isDrawing) return;
+
+    e.cancelBubble = true;
+
+    if (!item.closed) return;
+
+    if (store.annotationStore.selected.isLinkingMode) {
+      stage.container().style.cursor = Constants.DEFAULT_CURSOR;
+    }
+
+    item.setHighlight(false);
+    item.onClickRegion(e);
+  };
+
   return (
     <Group
       key={item.id ? item.id : guidGenerator(5)}
@@ -662,22 +681,8 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
         }
         item.updateCursor();
       }}
-      onClick={(e) => {
-        // create regions over another regions with Cmd/Ctrl pressed
-        if (item.parent.getSkipInteractions()) return;
-        if (item.isDrawing) return;
-
-        e.cancelBubble = true;
-
-        if (!item.closed) return;
-
-        if (store.annotationStore.selected.isLinkingMode) {
-          stage.container().style.cursor = Constants.DEFAULT_CURSOR;
-        }
-
-        item.setHighlight(false);
-        item.onClickRegion(e);
-      }}
+      onClick={handleRegionClick}
+      onTap={handleRegionClick}
       {...dragProps}
       draggable={!item.isReadOnly() && (!item.inSelection || item.parent?.selectedRegions?.length === 1)}
       listening={!suggestion}
