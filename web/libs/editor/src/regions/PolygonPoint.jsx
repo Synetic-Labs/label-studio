@@ -192,6 +192,8 @@ const PolygonPointView = observer(({ item, name }) => {
       item._movePoint(x, y);
       shape.setAttr("x", item.canvasX);
       shape.setAttr("y", item.canvasY);
+      // Follow the dragged point with the magnifier for precise repositioning.
+      item.stage?.setLoupePoint?.(item.x, item.y);
     },
 
     onDragStart: () => {
@@ -200,11 +202,13 @@ const PolygonPointView = observer(({ item, name }) => {
         return false;
       }
       item.annotation.history.freeze();
+      item.stage?.setLoupePoint?.(item.x, item.y);
     },
 
     onDragEnd: (e) => {
       setDraggable(true);
       item.annotation.history.unfreeze();
+      item.stage?.clearLoupePoint?.();
       e.cancelBubble = true;
     },
 

@@ -25,6 +25,7 @@ import { FF_DEV_1442, FF_LSDV_4930, isFF } from "../../utils/feature-flags";
 import { InteractiveActionsBar } from "../../ml-interactive/InteractiveActionsBar";
 import { Pagination } from "../../common/Pagination/Pagination";
 import { Image } from "./Image";
+import { Loupe } from "./Loupe";
 
 Konva.showWarnings = false;
 
@@ -564,6 +565,11 @@ export default observer(
     // stop routing draw events until all fingers lift.
     activeTouches = new Set();
     isGesture = false;
+    // Latest screen position of each active touch pointer (pointerId -> {x, y}), plus
+    // the pinch baseline (start distance + zoom) and last center. Used to drive
+    // two-finger pinch-zoom / pan through the Image model's existing zoom actions.
+    touchPoints = new Map();
+    pinchState = null;
 
     constructor(props) {
       super(props);
@@ -803,9 +809,13 @@ export default observer(
       if (e.pointerType !== "touch") return;
 
       this.activeTouches.add(e.pointerId);
+      this.touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      // Finger count changed: re-baseline the pinch so distance/center jumps
+      // (e.g. adding a 3rd finger) don't cause a sudden zoom/pan on the next move.
+      this.pinchState = null;
       if (this.activeTouches.size >= 2 && !this.isGesture) {
         this.isGesture = true;
-        // Cancel the point being placed; pan/zoom takes over (handled separately).
+        // Cancel the point being placed; pan/zoom takes over (see handleWindowPointerMove).
         this.props.item.getToolsManager().findSelectedTool()?.abortPendingPoint?.();
       }
     };
@@ -813,8 +823,82 @@ export default observer(
     handleWindowPointerUp = (e) => {
       if (e.pointerType !== "touch") return;
       this.activeTouches.delete(e.pointerId);
+      this.touchPoints.delete(e.pointerId);
+      // Re-baseline the (possibly still ongoing) pinch after a finger lifts.
+      this.pinchState = null;
       // Note: isGesture is intentionally NOT reset here — it is reset on the next
       // fresh interaction, so the final finger lifting doesn't commit a stray point.
+    };
+
+    // Two-finger pinch-zoom + pan. We reuse Label Studio's existing zoom engine
+    // (`setZoom`/`setZoomPosition` — the same actions the mouse wheel and trackpad
+    // drive) and only add the gesture glue: measure the distance and midpoint between
+    // the two fingers. Tracked at the window level (capture phase) for the same reason
+    // as the touch counting above — immune to Konva event bubbling being cancelled by
+    // region/point handlers.
+    //
+    // Zoom is derived ABSOLUTELY from the gesture's start (startZoom * dist/startDist)
+    // rather than frame-to-frame. This matters because each finger fires its own
+    // pointermove events independently — they are never delivered in sync — so a
+    // frame-to-frame distance ratio sees the spacing wobble as fingers update one at a
+    // time, and that error accumulates into a spurious zoom drift during a pure pan.
+    // An absolute mapping self-corrects: a momentarily-stale finger yields a transient
+    // wrong value that is fixed on the very next event, with no accumulation. Pan stays
+    // incremental — center deltas telescope to (finalCenter - startCenter) regardless
+    // of intermediate staleness, so it doesn't drift either.
+    handleWindowPointerMove = (e) => {
+      if (e.pointerType !== "touch") return;
+      this.touchPoints.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.activeTouches.size < 2) return;
+
+      const { item } = this.props;
+      const container = item.stageRef?.container?.();
+
+      if (!container) return;
+
+      const ids = [...this.activeTouches];
+      const p1 = this.touchPoints.get(ids[0]);
+      const p2 = this.touchPoints.get(ids[1]);
+
+      if (!p1 || !p2) return;
+
+      const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      const rect = container.getBoundingClientRect();
+      // Pinch center in stage-container coordinates — the same space as
+      // stage.getPointerPosition(), which is what the zoom-to-point math expects.
+      const cx = (p1.x + p2.x) / 2 - rect.left;
+      const cy = (p1.y + p2.y) / 2 - rect.top;
+
+      // First move of a gesture just establishes the baseline.
+      if (!this.pinchState) {
+        this.pinchState = { startDist: dist, startZoom: item.currentZoom, prevCx: cx, prevCy: cy };
+        return;
+      }
+
+      const st = this.pinchState;
+
+      // 1) Pan by how far the pinch center moved since the last event, so the content
+      //    under the previous center follows to the current center.
+      item.setZoomPosition(item.zoomingPositionX + (cx - st.prevCx), item.zoomingPositionY + (cy - st.prevCy));
+
+      // 2) Zoom to the absolute target for the current finger spacing, pinning the
+      //    current pinch center (zoom-to-point, same math as item.handleZoom). Cap at
+      //    MAX_ZOOM (100) to match the wheel/trackpad zoom ceiling; setZoom floors at 1.
+      const MAX_ZOOM = 100;
+      const targetZoom = st.startDist > 0 ? Math.min(st.startZoom * (dist / st.startDist), MAX_ZOOM) : st.startZoom;
+
+      let stageScale = item.zoomScale;
+      const absX = (cx - item.zoomingPositionX) / stageScale;
+      const absY = (cy - item.zoomingPositionY) / stageScale;
+
+      item.setZoom(targetZoom);
+
+      stageScale = item.zoomScale;
+      item.setZoomPosition(cx - absX * stageScale, cy - absY * stageScale);
+
+      item.updateImageAfterZoom();
+      st.prevCx = cx;
+      st.prevCy = cy;
     };
 
     /**
@@ -1035,8 +1119,10 @@ export default observer(
       const { item } = this.props;
 
       window.addEventListener("resize", this.onResize);
-      // Capture-phase touch counting for multi-touch gesture detection (see handlers).
+      // Capture-phase touch counting + pinch/pan tracking for multi-touch gestures
+      // (see handlers). Capture phase makes these immune to Konva cancelling bubbling.
       window.addEventListener("pointerdown", this.handleWindowPointerDown, true);
+      window.addEventListener("pointermove", this.handleWindowPointerMove, true);
       window.addEventListener("pointerup", this.handleWindowPointerUp, true);
       window.addEventListener("pointercancel", this.handleWindowPointerUp, true);
       this.attachObserver(item.containerRef);
@@ -1067,6 +1153,7 @@ export default observer(
       window.removeEventListener("pointermove", this.handleGlobalMouseMove);
       window.removeEventListener("pointerup", this.handleGlobalMouseUp);
       window.removeEventListener("pointerdown", this.handleWindowPointerDown, true);
+      window.removeEventListener("pointermove", this.handleWindowPointerMove, true);
       window.removeEventListener("pointerup", this.handleWindowPointerUp, true);
       window.removeEventListener("pointercancel", this.handleWindowPointerUp, true);
 
@@ -1237,6 +1324,7 @@ export default observer(
               />
             ) : null}
             {imageIsLoaded && ff.isSegmentAnythingEditorEnabled() && <InteractiveOverlayHost objectTag={item} />}
+            {imageIsLoaded && <Loupe item={item} />}
           </div>
 
           {imageIsLoaded && ff.isSegmentAnythingEditorEnabled() && <InteractiveActionsBar objectTag={item} />}
