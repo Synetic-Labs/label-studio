@@ -79,28 +79,14 @@ const _Tool = types
     // a left press "arms" a pending point that is committed on release, so the
     // user can preview where the point lands (via the ghost line) before letting go.
     let armed = false;
-    // Set when a right-click happens during the hold -> cancel the pending point
-    // (mirrors the two-finger abort gesture planned for touch).
-    let aborted = false;
 
-    // Window-level right-click listener active only during a hold. Listening at the
-    // window (capture phase) makes the abort work no matter what is under the cursor,
-    // and lets us suppress the browser context menu while placing a point.
-    let abortListener = null;
-    const startAbortWatch = () => {
-      if (abortListener) return;
-      abortListener = (e) => {
-        if (!armed) return;
-        aborted = true;
-        e.preventDefault();
-      };
-      window.addEventListener("contextmenu", abortListener, true);
-    };
-    const stopAbortWatch = () => {
-      if (!abortListener) return;
-      window.removeEventListener("contextmenu", abortListener, true);
-      abortListener = null;
-    };
+    // Double-click / double-tap-to-close bookkeeping. The second tap of a double-tap
+    // lands on the point the first tap just placed, so it never reaches the tool — the
+    // close is therefore triggered from the point handler (see PolygonPoint), which asks
+    // `isQuickRetap` whether this point was just placed within the double-tap window.
+    let lastPlacedId = null;
+    let lastPlacedTs = 0;
+    const DOUBLE_TAP_MS = 400; // matches Konva's dblClickWindow
 
     return {
       handleToolSwitch(tool) {
@@ -149,23 +135,21 @@ const _Tool = types
       // Press-and-hold placement model.
       //
       // Instead of committing a point on a click, we "arm" on press and commit on
-      // release at the release position. While held (or on hover) the ghost line
-      // previews where the point will land. A right-click during the hold aborts.
+      // release at the release position, so the ghost line previews where the point
+      // will land before you let go. To undo a mistaken point, just move or delete it.
       //
       // Panning is preserved: shift-drag / middle-drag pan the image, so those are
       // never armed and never commit a point.
-      mousedownEv(ev, _coords) {
-        // Right-button press during a hold aborts the pending point (fast path;
-        // the window contextmenu listener below is the robust catch-all).
-        if (ev.button === 2) {
-          if (armed) aborted = true;
-          return;
-        }
+      mousedownEv(ev, [x, y]) {
         // Only a plain left press arms a point; shift is reserved for panning.
         if (ev.button !== 0 || ev.shiftKey) return;
         armed = true;
-        aborted = false;
-        startAbortWatch();
+
+        // Show the ghost preview immediately on press, so a tap-and-hold (no move yet)
+        // still previews where the point will land and the segment from the last point.
+        const area = self.getCurrentArea();
+
+        if (area?.isDrawing && !area.closed) area.setGhostPoint({ x, y });
       },
 
       // Update the ghost-line preview to follow the pointer while drawing.
@@ -179,31 +163,55 @@ const _Tool = types
       },
 
       mouseupEv(ev, [x, y]) {
-        // Ignore middle/right button releases (right-click abort is handled on its press).
+        // Ignore middle/right button releases.
         if (ev.button !== 0) return;
 
-        const shouldCommit = armed && !aborted && !ev.shiftKey;
+        const shouldCommit = armed && !ev.shiftKey;
 
         armed = false;
-        aborted = false;
-        stopAbortWatch();
+
+        if (!shouldCommit) return;
 
         // Commit the point (or close the path) at the release position.
         // _clickEv handles first-point creation, adding subsequent points, and
         // closing when releasing near the start point.
-        if (shouldCommit) self._clickEv(ev, [x, y]);
+        const area = self.getCurrentArea();
+        const before = area?.points?.length ?? 0;
+
+        self._clickEv(ev, [x, y]);
+
+        // Remember the just-placed point so a quick re-tap on it closes the polygon
+        // (double-tap / double-click to close — see isQuickRetap / PolygonPoint).
+        const after = self.getCurrentArea();
+
+        if (after && after.points.length > before) {
+          lastPlacedId = after.points[after.points.length - 1].id;
+          lastPlacedTs = ev.timeStamp;
+        }
       },
 
       // Placement happens on release (mouseup); swallow the trailing browser click
       // so we never place a duplicate point.
       clickEv() {},
 
+      // True if `pointId` is the point we just placed and it's being tapped again within
+      // the double-tap window — used by PolygonPoint to close the polygon on double-tap.
+      isQuickRetap(pointId, ts) {
+        return pointId != null && pointId === lastPlacedId && ts != null && ts - lastPlacedTs < DOUBLE_TAP_MS;
+      },
+
+      // Cancel the point currently being placed without committing it. Called when a
+      // second finger starts a pan/zoom gesture on touch.
+      abortPendingPoint() {
+        if (!armed) return;
+        armed = false;
+        self.getCurrentArea()?.clearGhostPoint?.();
+      },
+
       _finishDrawing() {
         const { currentArea, control } = self;
 
         armed = false;
-        aborted = false;
-        stopAbortWatch();
         self.currentArea?.clearGhostPoint?.();
         self.currentArea.notifyDrawingFinished();
         self.setDrawing(false);
@@ -221,8 +229,6 @@ const _Tool = types
         const { currentArea } = self;
 
         armed = false;
-        aborted = false;
-        stopAbortWatch();
         self.setDrawing(false);
         self.currentArea = null;
         if (currentArea) {

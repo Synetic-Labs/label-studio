@@ -236,8 +236,8 @@ const PolygonPointView = observer(({ item, name }) => {
 
   const fill = item.selected ? "green" : "white";
 
-  // Shared handler for click (mouse/pen) and tap (touch) on a polygon point.
-  // Tapping the first point closes an open polygon; tapping any other point selects it.
+  // Click/tap on a polygon point: tapping the first (start) point closes an open
+  // polygon (>= 3 points); otherwise the point is selected.
   const handlePointInteraction = (ev) => {
     if (ev.evt.altKey) return item.parent.deletePoint(item);
     if (item.parent.isDrawing && item.parent.points.length === 1) return;
@@ -245,15 +245,33 @@ const PolygonPointView = observer(({ item, name }) => {
     ev.evt.preventDefault?.();
     ev.cancelBubble = true;
 
-    // Close on the start point even without a prior hover, so touch/pen work.
+    const canClose = !item.parent.closed && item.parent.points.length >= 3;
     const isStartPoint = item.index === 0;
-    const canCloseOnStartPoint = isStartPoint && !item.parent.closed && item.parent.points.length >= 3;
 
-    if (item.parent.mouseOverStartPoint || canCloseOnStartPoint) {
+    if (canClose && (isStartPoint || item.parent.mouseOverStartPoint)) {
       item.closeStartPoint();
       item.parent.notifyDrawingFinished();
     } else {
       item.parent.setSelectedPoint(item);
+    }
+  };
+
+  // Double-tap / double-click anywhere to close: the first tap places a point and the
+  // second lands on it. We detect that quick re-tap here on `pointerdown` (not click/
+  // tap) — pointerdown fires exactly once per real press, so the browser's synthesized
+  // "ghost click" that follows a touch tap can't masquerade as the second tap.
+  const handlePointPointerDown = (ev) => {
+    const polygonTool = item.parent.control?.tools?.Polygon;
+
+    if (
+      !item.parent.closed &&
+      item.parent.points.length >= 3 &&
+      polygonTool?.isQuickRetap?.(item.id, ev.evt?.timeStamp)
+    ) {
+      ev.cancelBubble = true;
+      ev.evt.preventDefault?.();
+      item.closeStartPoint();
+      item.parent.notifyDrawingFinished();
     }
   };
 
@@ -277,6 +295,7 @@ const PolygonPointView = observer(({ item, name }) => {
         onDblClick={() => {
           item.parent.deletePoint(item);
         }}
+        onPointerDown={handlePointPointerDown}
         onClick={handlePointInteraction}
         onTap={handlePointInteraction}
         {...dragOpts}
@@ -303,6 +322,7 @@ const PolygonPointView = observer(({ item, name }) => {
       onDblClick={() => {
         item.parent.deletePoint(item);
       }}
+      onPointerDown={handlePointPointerDown}
       onClick={handlePointInteraction}
       onTap={handlePointInteraction}
       {...dragOpts}

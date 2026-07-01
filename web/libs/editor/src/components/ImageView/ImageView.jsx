@@ -527,6 +527,11 @@ export default observer(
     skipNextMouseUp = false;
     mouseDownPoint = null;
     mouseDown = false;
+    // Active touch-type pointers, tracked by pointerId. Two or more touches means a
+    // pan/zoom gesture rather than drawing, so we abort the in-progress point and
+    // stop routing draw events until all fingers lift.
+    activeTouches = new Set();
+    isGesture = false;
 
     constructor(props) {
       super(props);
@@ -619,6 +624,12 @@ export default observer(
     handleMouseDown = (e) => {
       this.mouseDown = true;
       const { item } = this.props;
+
+      // A multi-touch gesture (pan/zoom) is in progress: don't route as drawing.
+      // Touch counting lives in the window-level pointer listeners (see below), which
+      // are immune to Konva event-bubbling being cancelled by region/point handlers.
+      if (this.isGesture) return;
+
       const isPanTool = item.getToolsManager().findSelectedTool()?.fullName === "ZoomPanTool";
       const isMoveTool = item.getToolsManager().findSelectedTool()?.fullName === "MoveTool";
 
@@ -668,8 +679,8 @@ export default observer(
           e.target === item.stageRef ||
           findClosestParent(e.target, isRightElementToCatchToolInteractions)
         ) {
-          window.addEventListener("mousemove", this.handleGlobalMouseMove);
-          window.addEventListener("mouseup", this.handleGlobalMouseUp);
+          window.addEventListener("pointermove", this.handleGlobalMouseMove);
+          window.addEventListener("pointerup", this.handleGlobalMouseUp);
           const { offsetX: x, offsetY: y } = e.evt;
           // store the canvas coords for calculations in further events
           const { left, top } = item.containerRef.getBoundingClientRect();
@@ -726,10 +737,11 @@ export default observer(
      * Mouse up outside the canvas
      */
     handleGlobalMouseUp = (e) => {
-      window.removeEventListener("mousemove", this.handleGlobalMouseMove);
-      window.removeEventListener("mouseup", this.handleGlobalMouseUp);
+      window.removeEventListener("pointermove", this.handleGlobalMouseMove);
+      window.removeEventListener("pointerup", this.handleGlobalMouseUp);
 
       if (e.target && e.target.tagName === "CANVAS") return;
+      if (this.isGesture) return;
 
       const { item } = this.props;
       const { clientX: x, clientY: y } = e;
@@ -740,12 +752,37 @@ export default observer(
     };
 
     handleGlobalMouseMove = (e) => {
+      if (this.isGesture) return;
       if (e.target && e.target.tagName === "CANVAS") return;
 
       const { item } = this.props;
       const { clientX: x, clientY: y } = e;
 
       return item.event("mousemove", e, x - this.canvasX, y - this.canvasY);
+    };
+
+    // Touch counting is done at the window level (capture phase) so it is robust to
+    // Konva event bubbling being cancelled by region/point handlers — which previously
+    // left stale pointer ids around and wedged us in "gesture" mode (touch stopped
+    // drawing entirely). Two or more concurrent touches => a pan/zoom gesture.
+    handleWindowPointerDown = (e) => {
+      // Reset on any fresh interaction (mouse click or first finger down).
+      if (this.activeTouches.size === 0) this.isGesture = false;
+      if (e.pointerType !== "touch") return;
+
+      this.activeTouches.add(e.pointerId);
+      if (this.activeTouches.size >= 2 && !this.isGesture) {
+        this.isGesture = true;
+        // Cancel the point being placed; pan/zoom takes over (handled separately).
+        this.props.item.getToolsManager().findSelectedTool()?.abortPendingPoint?.();
+      }
+    };
+
+    handleWindowPointerUp = (e) => {
+      if (e.pointerType !== "touch") return;
+      this.activeTouches.delete(e.pointerId);
+      // Note: isGesture is intentionally NOT reset here — it is reset on the next
+      // fresh interaction, so the final finger lifting doesn't commit a stray point.
     };
 
     /**
@@ -758,6 +795,8 @@ export default observer(
       if (isFF(FF_DEV_1442)) {
         this.resetDeferredClickTimeout();
       }
+
+      if (this.isGesture) return;
 
       item.freezeHistory();
 
@@ -776,6 +815,9 @@ export default observer(
 
     handleMouseMove = (e) => {
       const { item } = this.props;
+
+      // During a multi-touch gesture (pan/zoom) we don't route move events as drawing.
+      if (this.isGesture) return;
 
       item.freezeHistory();
 
@@ -961,6 +1003,10 @@ export default observer(
       const { item } = this.props;
 
       window.addEventListener("resize", this.onResize);
+      // Capture-phase touch counting for multi-touch gesture detection (see handlers).
+      window.addEventListener("pointerdown", this.handleWindowPointerDown, true);
+      window.addEventListener("pointerup", this.handleWindowPointerUp, true);
+      window.addEventListener("pointercancel", this.handleWindowPointerUp, true);
       this.attachObserver(item.containerRef);
       this.updateReadyStatus();
 
@@ -986,8 +1032,11 @@ export default observer(
     componentWillUnmount() {
       this.detachObserver();
       window.removeEventListener("resize", this.onResize);
-      window.removeEventListener("mousemove", this.handleGlobalMouseMove);
-      window.removeEventListener("mouseup", this.handleGlobalMouseUp);
+      window.removeEventListener("pointermove", this.handleGlobalMouseMove);
+      window.removeEventListener("pointerup", this.handleGlobalMouseUp);
+      window.removeEventListener("pointerdown", this.handleWindowPointerDown, true);
+      window.removeEventListener("pointerup", this.handleWindowPointerUp, true);
+      window.removeEventListener("pointercancel", this.handleWindowPointerUp, true);
 
       hotkeys.removeDescription("shift");
     }
@@ -1219,6 +1268,20 @@ const EntireStage = observer(
       <Stage
         ref={(ref) => {
           item.setStageRef(ref);
+          // Stop the browser from claiming touch drags as scroll/zoom. Without this the
+          // browser fires `pointercancel` partway through a drag (after ~tens of px),
+          // which freezes the ghost line and drops the in-progress point. We handle
+          // pan/zoom ourselves. `user-select`/`touch-callout: none` also suppress the
+          // long-press text-selection / callout menu that a press-and-hold would trigger.
+          if (ref) {
+            for (const el of [ref.content, ref.container?.()]) {
+              if (!el) continue;
+              el.style.touchAction = "none";
+              el.style.userSelect = "none";
+              el.style.webkitUserSelect = "none";
+              el.style.webkitTouchCallout = "none";
+            }
+          }
         }}
         className={[styles["image-element"], ...imagePositionClassnames].join(" ")}
         width={size.width}
@@ -1230,13 +1293,22 @@ const EntireStage = observer(
         offsetX={item.stageTranslate.x}
         offsetY={item.stageTranslate.y}
         rotation={item.rotation}
-        onClick={onClick}
+        // Unified Pointer Events: a single set of handlers serves mouse, touch and
+        // pen. Konva's `pointer*` namespace fires once per interaction regardless of
+        // input type, so we bind these instead of the mouse-only `onMouseDown`/`onClick`
+        // events (which left touch/pen unhandled). `pointerclick` is the input-agnostic
+        // equivalent of `click`/`tap`.
+        onPointerClick={onClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onDragMove={onDragMove}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
+        onPointerDown={onMouseDown}
+        onPointerMove={onMouseMove}
+        onPointerUp={onMouseUp}
+        // Suppress the browser context menu on the canvas: a touch long-press (the
+        // normal press-and-hold to place a point) would otherwise pop it, and right-click
+        // has no role on the drawing surface.
+        onContextMenu={(e) => e.evt?.preventDefault?.()}
         onWheel={onWheel}
       >
         <StageContent item={item} store={store} state={state} crosshairRef={crosshairRef} />
