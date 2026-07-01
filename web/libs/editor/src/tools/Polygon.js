@@ -150,6 +150,10 @@ const _Tool = types
         const area = self.getCurrentArea();
 
         if (area?.isDrawing && !area.closed) area.setGhostPoint({ x, y });
+
+        // Show the magnifier above the pressed point (works for the first point too,
+        // before any region exists, since it lives on the image object).
+        self.obj?.setLoupePoint(x, y);
       },
 
       // Update the ghost-line preview to follow the pointer while drawing.
@@ -160,6 +164,10 @@ const _Tool = types
         if (area?.isDrawing && !area.closed) {
           area.setGhostPoint({ x, y });
         }
+
+        // Track the loupe only while actively holding (not on plain mouse hover), so it
+        // shows "above the held-down area" and follows the point as it is positioned.
+        if (armed) self.obj?.setLoupePoint(x, y);
       },
 
       mouseupEv(ev, [x, y]) {
@@ -169,6 +177,7 @@ const _Tool = types
         const shouldCommit = armed && !ev.shiftKey;
 
         armed = false;
+        self.obj?.clearLoupePoint();
 
         if (!shouldCommit) return;
 
@@ -206,6 +215,7 @@ const _Tool = types
         if (!armed) return;
         armed = false;
         self.getCurrentArea()?.clearGhostPoint?.();
+        self.obj?.clearLoupePoint();
       },
 
       _finishDrawing() {
@@ -213,6 +223,7 @@ const _Tool = types
 
         armed = false;
         self.currentArea?.clearGhostPoint?.();
+        self.obj?.clearLoupePoint();
         self.currentArea.notifyDrawingFinished();
         self.setDrawing(false);
         self.currentArea = null;
@@ -229,6 +240,7 @@ const _Tool = types
         const { currentArea } = self;
 
         armed = false;
+        self.obj?.clearLoupePoint();
         self.setDrawing(false);
         self.currentArea = null;
         if (currentArea) {

@@ -186,6 +186,10 @@ const Model = types
   .volatile(() => ({
     currentImage: undefined,
     supportSuggestions: true,
+    // Active magnifier/loupe target in internal (0-100) coords, or null when hidden.
+    // Set while a point is being placed (press-hold) or dragged, so a zoomed preview
+    // can be shown just above the touch/cursor for pixel-precise positioning.
+    loupePoint: null,
   }))
   .views((self) => ({
     get store() {
@@ -1042,6 +1046,16 @@ const Model = types
 
     setOverlayRef(ref) {
       self.overlayRef = ref;
+    },
+
+    // Magnifier/loupe target (internal 0-100 coords). Set while placing/dragging a
+    // point so the Loupe overlay can render a zoomed preview above it; clear to hide.
+    setLoupePoint(x, y) {
+      self.loupePoint = { x, y };
+    },
+
+    clearLoupePoint() {
+      self.loupePoint = null;
     },
 
     // @todo remove
