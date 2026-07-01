@@ -299,6 +299,9 @@ const PolygonPointView = observer(({ item, name }) => {
         onDblClick={() => {
           item.parent.deletePoint(item);
         }}
+        onDblTap={() => {
+          item.parent.deletePoint(item);
+        }}
         onPointerDown={handlePointPointerDown}
         onClick={handlePointInteraction}
         onTap={handlePointInteraction}
@@ -324,6 +327,9 @@ const PolygonPointView = observer(({ item, name }) => {
       shadowForStrokeEnabled={false}
       dragOnTop={false}
       onDblClick={() => {
+        item.parent.deletePoint(item);
+      }}
+      onDblTap={() => {
         item.parent.deletePoint(item);
       }}
       onPointerDown={handlePointPointerDown}
