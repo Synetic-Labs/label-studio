@@ -52,11 +52,24 @@ mockModule("react-konva", () => {
       container: () => ({ style: {} }),
     }));
     const wrappedProps = { ...props };
+    // ImageView binds Konva's input-agnostic `pointer*` handlers (mouse + touch + pen).
+    // Map them onto the DOM mouse handlers so tests can keep dispatching MouseEvents.
+    const KONVA_POINTER_TO_DOM = {
+      onPointerClick: "onClick",
+      onPointerDown: "onMouseDown",
+      onPointerMove: "onMouseMove",
+      onPointerUp: "onMouseUp",
+    };
+    for (const [konvaKey, domKey] of Object.entries(KONVA_POINTER_TO_DOM)) {
+      if (props[konvaKey]) wrappedProps[domKey] = props[konvaKey];
+      delete wrappedProps[konvaKey];
+    }
     if (props.onWheel) wrappedProps.onWheel = wrapEvt(props.onWheel);
-    if (props.onClick) wrappedProps.onClick = wrapEvt(props.onClick);
-    if (props.onMouseUp) wrappedProps.onMouseUp = wrapEvt(props.onMouseUp);
-    if (props.onMouseDown) wrappedProps.onMouseDown = wrapEvt(props.onMouseDown);
-    if (props.onMouseMove) wrappedProps.onMouseMove = wrapEvt(props.onMouseMove);
+    if (props.onContextMenu) wrappedProps.onContextMenu = wrapEvt(props.onContextMenu);
+    if (wrappedProps.onClick) wrappedProps.onClick = wrapEvt(wrappedProps.onClick);
+    if (wrappedProps.onMouseUp) wrappedProps.onMouseUp = wrapEvt(wrappedProps.onMouseUp);
+    if (wrappedProps.onMouseDown) wrappedProps.onMouseDown = wrapEvt(wrappedProps.onMouseDown);
+    if (wrappedProps.onMouseMove) wrappedProps.onMouseMove = wrapEvt(wrappedProps.onMouseMove);
     if (props.onMouseLeave) wrappedProps.onMouseLeave = wrapEvt(props.onMouseLeave);
     return React.createElement(
       "div",
@@ -990,8 +1003,8 @@ describe("ImageView", () => {
       target: { parent: bitmaskLayer, getParent: () => null },
     };
     viewRef.handleMouseDown(fakeE);
-    expect(addEventListenerSpy).toHaveBeenCalledWith("mousemove", expect.any(Function));
-    expect(addEventListenerSpy).toHaveBeenCalledWith("mouseup", expect.any(Function));
+    expect(addEventListenerSpy).toHaveBeenCalledWith("pointermove", expect.any(Function));
+    expect(addEventListenerSpy).toHaveBeenCalledWith("pointerup", expect.any(Function));
     expect(item.event).toHaveBeenCalledWith("mousedown", fakeE, 10, 15);
     addEventListenerSpy.mockRestore();
   });
@@ -1010,7 +1023,7 @@ describe("ImageView", () => {
     item.event.mockClear();
     const canvas = document.createElement("canvas");
     container.appendChild(canvas);
-    const mouseupEvt = new MouseEvent("mouseup", { bubbles: true, clientX: 50, clientY: 50 });
+    const mouseupEvt = new MouseEvent("pointerup", { bubbles: true, clientX: 50, clientY: 50 });
     canvas.dispatchEvent(mouseupEvt);
     expect(item.event).not.toHaveBeenCalled();
   });
@@ -1029,7 +1042,7 @@ describe("ImageView", () => {
     item.event.mockClear();
     const canvas = document.createElement("canvas");
     container.appendChild(canvas);
-    canvas.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 30, clientY: 40 }));
+    canvas.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 30, clientY: 40 }));
     expect(item.event).not.toHaveBeenCalled();
   });
 
@@ -1045,7 +1058,7 @@ describe("ImageView", () => {
     Object.defineProperty(mousedownEvt, "offsetY", { value: 10 });
     stage.dispatchEvent(mousedownEvt);
     item.event.mockClear();
-    const moveEvt = new MouseEvent("mousemove", { bubbles: true, clientX: 80, clientY: 90 });
+    const moveEvt = new MouseEvent("pointermove", { bubbles: true, clientX: 80, clientY: 90 });
     document.body.dispatchEvent(moveEvt);
     expect(item.event).toHaveBeenCalledWith("mousemove", expect.anything(), 80, 90);
   });
@@ -1186,7 +1199,7 @@ describe("ImageView", () => {
     Object.defineProperty(mousedownEvt, "offsetX", { value: 25 });
     Object.defineProperty(mousedownEvt, "offsetY", { value: 35 });
     stage.dispatchEvent(mousedownEvt);
-    const mouseupEvt = new MouseEvent("mouseup", { bubbles: true, clientX: 50, clientY: 60 });
+    const mouseupEvt = new MouseEvent("pointerup", { bubbles: true, clientX: 50, clientY: 60 });
     Object.defineProperty(mouseupEvt, "target", { value: document.body });
     window.dispatchEvent(mouseupEvt);
     expect(item.event).toHaveBeenCalledWith("mouseup", expect.anything(), 50, 60);
