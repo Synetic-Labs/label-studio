@@ -15,6 +15,7 @@ import { KonvaRegionMixin } from "../mixins/KonvaRegion";
 import NormalizationMixin from "../mixins/Normalization";
 import RegionsMixin from "../mixins/Regions";
 import { ImageModel } from "../tags/object/Image";
+import { projectConcentricQuad } from "../utils/homography";
 import { createDragBoundFunc } from "../utils/image";
 import { AliveRegion } from "./AliveRegion";
 import { PolygonPoint, PolygonPointView } from "./PolygonPoint";
@@ -45,6 +46,43 @@ const Model = types
   .views((self) => ({
     get store() {
       return getRoot(self);
+    },
+    // Fixed vertex count from the control's `fixedPoints` attribute (null = free-form).
+    get fixedPoints() {
+      return self.control?.fixedPoints ?? null;
+    },
+    // Outer/inner ratio from the control's `outerRatio` attribute (null = no outer quad).
+    get outerRatio() {
+      return self.control?.outerRatio ?? null;
+    },
+    // Vertices can be inserted (edge click) / removed (double-click, alt-click) only
+    // when the vertex count is not fixed.
+    get canEditPoints() {
+      return !self.fixedPoints;
+    },
+    // Handle size/style from the control's `pointSize` / `pointStyle` attributes.
+    get pointSize() {
+      return self.control?.pointsize ?? "small";
+    },
+    get pointStyle() {
+      return self.control?.pointstyle ?? "circle";
+    },
+    // Handle-point opacity (control attribute `pointOpacity`, default opaque).
+    get pointOpacity() {
+      return self.control?.pointOpacity ?? 1;
+    },
+    // Stroke color when selected (control attribute `highlightColor`, else app-wide).
+    get highlightColor() {
+      return self.control?.highlightColor ?? Constants.HIGHLIGHTED_STROKE_COLOR;
+    },
+    // The dashed outer quad predicted from a 4-point polygon, in internal coords.
+    get outerQuad() {
+      if (!self.outerRatio || self.points.length !== 4) return null;
+
+      return projectConcentricQuad(
+        self.points.map((p) => [p.x, p.y]),
+        self.outerRatio,
+      );
     },
     get bboxCoords() {
       if (!self.points?.length || !isAlive(self)) return {};
@@ -135,7 +173,7 @@ const Model = types
       },
 
       handleLineClick({ e, flattenedPoints, insertIdx }) {
-        if (!self.closed || !self.selected) return;
+        if (!self.closed || !self.selected || !self.canEditPoints) return;
 
         e.cancelBubble = true;
 
@@ -150,6 +188,7 @@ const Model = types
       },
 
       deletePoint(point) {
+        if (!self.canEditPoints) return;
         const willNotEliminateClosedShape = self.points.length <= 3 && point.parent.closed;
         const isLastPoint = self.points.length === 1;
         const isSelected = self.selectedPoint === point;
@@ -175,6 +214,7 @@ const Model = types
       },
 
       insertPoint(insertIdx, x, y) {
+        if (!self.canEditPoints) return;
         const pointCoords = self.control?.getSnappedPoint({
           x: self.parent.canvasToInternalX(x),
           y: self.parent.canvasToInternalY(y),
@@ -220,6 +260,10 @@ const Model = types
           style: self.pointStyle,
           index: self.points.length,
         });
+
+        // Fixed vertex count: the Nth point closes the polygon (the tool observes
+        // `closed` and finishes drawing), so there is no start point to tap.
+        if (self.fixedPoints && self.points.length >= self.fixedPoints) self.closePoly();
       },
 
       closePoly() {
@@ -458,7 +502,7 @@ const Edge = observer(({ name, item, idx, p1, p2, closed, regionStyles }) => {
       name={name}
       onClick={(e) => item.handleLineClick({ e, flattenedPoints, insertIdx })}
       onMouseMove={(e) => {
-        if (!item.closed || !item.selected || item.isReadOnly()) return;
+        if (!item.closed || !item.selected || item.isReadOnly() || !item.canEditPoints) return;
 
         item.handleMouseMove({ e, flattenedPoints });
       }}
@@ -561,12 +605,41 @@ const PolygonGhostLine = observer(({ item, regionStyles }) => {
   );
 });
 
+/**
+ * Dashed outer quad predicted from a 4-point polygon (control attribute `outerRatio`).
+ * Purely derived — it follows the four corners live and is never interactive. On a
+ * coplanar frame it hugs the physical outer boundary; if it doesn't, a corner is off.
+ */
+const PolygonOuterQuad = observer(({ item, regionStyles }) => {
+  const quad = item.outerQuad;
+
+  if (!quad) return null;
+
+  const points = quad.flatMap(([x, y]) => [item.parent.internalToCanvasX(x), item.parent.internalToCanvasY(y)]);
+
+  return (
+    <Line
+      name="outer-quad"
+      points={points}
+      closed
+      stroke={regionStyles.strokeColor}
+      strokeWidth={regionStyles.strokeWidth}
+      strokeScaleEnabled={false}
+      dash={[6, 4]}
+      perfectDrawEnabled={false}
+      shadowForStrokeEnabled={false}
+      listening={false}
+    />
+  );
+});
+
 const HtxPolygonView = ({ item, setShapeRef }) => {
   const { store } = item;
   const { suggestion } = useContext(ImageViewContext) ?? {};
 
   const regionStyles = useRegionStyles(item, {
     useStrokeAsFill: true,
+    defaultStrokeColorHighlighted: item.highlightColor,
   });
 
   function renderCircle({ points, idx }) {
@@ -700,6 +773,7 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
         />
       ) : null}
       {item.points && !item.isReadOnly() ? <Edges item={item} regionStyles={regionStyles} /> : null}
+      <PolygonOuterQuad item={item} regionStyles={regionStyles} />
       <PolygonGhostLine item={item} regionStyles={regionStyles} />
       {item.points && !item.isReadOnly() ? renderCircles(item.points) : null}
     </Group>

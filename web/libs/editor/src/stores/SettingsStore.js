@@ -42,7 +42,8 @@ const SettingsModel = types
 
     collapsibleBottomPanel: types.optional(types.boolean, false),
 
-    defaultCollapsedBottomPanel: types.optional(types.boolean, false),
+    // Start with the bottom panel (Regions/History/…) minimized — it eats most of a phone screen.
+    defaultCollapsedBottomPanel: types.optional(types.boolean, true),
 
     sidePanelMode: types.optional(
       types.enumeration([SIDEPANEL_MODE_REGIONS, SIDEPANEL_MODE_LABELS]),

@@ -59,6 +59,20 @@
     }
   }
 
+  &_disabled {
+    cursor: default;
+
+    & .tool__icon {
+      opacity: 0.2;
+    }
+
+    &:hover .tool__icon {
+      opacity: 0.2;
+      box-shadow: none;
+      background: none;
+    }
+  }
+
   &_active {
     & .tool__tooltip {
       display: none;

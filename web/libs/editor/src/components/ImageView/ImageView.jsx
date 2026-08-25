@@ -13,6 +13,21 @@ import { chunks, findClosestParent } from "../../utils/utilities";
 import Konva from "konva";
 import { LoadingOutlined } from "@ant-design/icons";
 import { Toolbar } from "../Toolbar/Toolbar";
+
+// Tools for which a tap on the empty stage deselects the selected regions (same set as
+// upstream's FF_DEV_1442 click-outside behaviour), and how far a "tap" may move.
+const CANVAS_DESELECT_TOOLS = [
+  undefined,
+  "EllipseTool",
+  "EllipseTool-dynamic",
+  "RectangleTool",
+  "RectangleTool-dynamic",
+  "PolygonTool",
+  "PolygonTool-dynamic",
+  "Rectangle3PointTool",
+  "Rectangle3PointTool-dynamic",
+];
+const CANVAS_TAP_SLOP_PX = 10;
 import { ImageViewProvider } from "./ImageViewContext";
 import { InteractiveOverlayHost } from "../../ml-interactive/InteractiveOverlayHost";
 import { Hotkey } from "../../core/Hotkey";
@@ -683,6 +698,15 @@ export default observer(
       if (item.annotation.isReadOnly() && !isPanTool) return;
       if (p && p.className === "Transformer") return;
 
+      // A press on the bare image while a region is selected is a "deselect" tap, not
+      // the start of a new shape. Decided on release (see handleMouseUp) so a pinch or
+      // a pan started on the image doesn't drop the selection.
+      this.pendingCanvasDeselect = null;
+      if (!isFF(FF_DEV_1442) && this.isCanvasDeselectPress(e)) {
+        this.pendingCanvasDeselect = { x: e.evt.clientX, y: e.evt.clientY };
+        return;
+      }
+
       const handleMouseDown = () => {
         if (e.evt.button === 1) {
           // prevent middle click from scrolling page
@@ -912,11 +936,49 @@ export default observer(
         this.resetDeferredClickTimeout();
       }
 
+      if (this.pendingCanvasDeselect) {
+        const start = this.pendingCanvasDeselect;
+        const moved = Math.hypot(e.evt.clientX - start.x, e.evt.clientY - start.y) > CANVAS_TAP_SLOP_PX;
+
+        this.pendingCanvasDeselect = null;
+        if (!this.isGesture && !moved) this.deselectOnCanvasTap();
+        this.skipNextClick = true;
+        return;
+      }
+
       if (this.isGesture) return;
 
       item.freezeHistory();
 
       return this.triggerMouseUp(e, e.evt.offsetX, e.evt.offsetY);
+    };
+
+    // True for a plain left press on the empty stage while regions are selected and a
+    // shape tool (or no tool) is active — the tools upstream's FF_DEV_1442 deselects for.
+    isCanvasDeselectPress = (e) => {
+      const { item } = this.props;
+      const evt = e.evt || e;
+
+      if (evt.button !== 0 || evt.shiftKey || item.getSkipInteractions()) return false;
+      if (e.target !== item.stageRef) return false;
+      if (item.annotation.isDrawing || !item.annotation.selectedRegions.length) return false;
+
+      const selectedTool = item.getToolsManager().findSelectedTool();
+
+      return CANVAS_DESELECT_TOOLS.includes(selectedTool?.fullName);
+    };
+
+    deselectOnCanvasTap = () => {
+      const { item, store } = this.props;
+      const control = item.getToolsManager().findSelectedTool()?.control;
+      // The labels selected right now mirror the selected region's labels. For a
+      // fixed-vertex tool (gates) — or with "keep label selected" on — re-arm them after
+      // deselecting, so the next taps start the next region straight away.
+      const rearm =
+        control?.fixedPoints || store?.settings?.continuousLabeling ? [...(control?.selectedLabels ?? [])] : [];
+
+      item.annotation.unselectAll();
+      rearm.forEach((label) => label.setSelected?.(true));
     };
 
     triggerMouseUp = (e, x, y) => {

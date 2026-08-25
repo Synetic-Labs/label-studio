@@ -224,7 +224,14 @@ const _Tool = types
         self.setDrawing(false);
         self.currentArea = null;
         self.mode = "viewing";
-        self.annotation.afterCreateResult(currentArea, control);
+        if (control?.fixedPoints) {
+          // Fixed-vertex polygons (gates) close themselves on the last tap, so keep the
+          // new region selected: its corner handles stay up for immediate refinement.
+          // Tapping the bare image deselects it again (see ImageView) and re-arms the label.
+          setTimeout(() => isAlive(currentArea) && self.annotation.selectArea(currentArea));
+        } else {
+          self.annotation.afterCreateResult(currentArea, control);
+        }
       },
 
       setDrawing(drawing) {

@@ -37,7 +37,9 @@ const BaseTool = types
         return getType(self).name;
       },
       get isSeparated() {
-        return self.control.isSeparated;
+        // The control can be gone while a stale toolbar renders during an editor
+        // remount (e.g. the playground re-creating the instance on load).
+        return self.control?.isSeparated ?? false;
       },
       get viewClass() {
         return () => (self.shouldRenderView ? <ToolView item={self} /> : null);

@@ -3,12 +3,12 @@
   --background: var(--sand_200);
 
   display: inline-flex;
-  padding: 2px 8px;
+  padding: 8px 12px; /* 1.5x the upstream 26px chip height: easier to tap on mobile */
   margin: 0;
-  border-radius: 3px;
+  border-radius: 4px;
   font-weight: 400;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 16px;
+  line-height: 23px;
   background-color: var(--background);
   color: var(--color-neutral-content);
   border-left: 4px solid var(--color);

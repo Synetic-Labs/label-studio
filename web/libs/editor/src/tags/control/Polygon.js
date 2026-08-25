@@ -30,11 +30,15 @@ const hotkeys = Hotkey("Polygons");
  * @param {string} [fillColor=transparent]        - Polygon fill color in hexadecimal or HTML color name
  * @param {string} [strokeColor=#f48a42]          - Stroke color in hexadecimal
  * @param {number} [strokeWidth=3]                - Width of stroke
- * @param {small|medium|large} [pointSize=small]  - Size of polygon handle points
+ * @param {small|medium|large|number} [pointSize=small] - Size of polygon handle points (a number is the radius in screen px, e.g. `18` for touch)
+ * @param {number} [pointOpacity=1]                - Opacity of the handle points (0-1)
  * @param {rectangle|circle} [pointStyle=circle]  - Style of points
+ * @param {string} [highlightColor=red]            - Stroke color of the selected polygon (and its dashed outer quad)
  * @param {boolean} [smart]                       - Show smart tool for interactive pre-annotations
  * @param {boolean} [smartOnly]                   - Only show smart tool for interactive pre-annotations
  * @param {pixel|none} [snap=none]                - Snap polygon to image pixels
+ * @param {number} [fixedPoints]                   - Fixed number of vertices (>= 3): the polygon closes automatically after the Nth point and vertices cannot be added or removed (e.g. `4` for quads)
+ * @param {number} [outerRatio]                    - For 4-point polygons, draw a dashed outer quad: the perspective (homography) projection of the quad scaled by this ratio about its centre (e.g. `1.8` = a racing gate's outer frame predicted from its inner opening)
  */
 const TagAttrs = types.model({
   toname: types.maybeNull(types.string),
@@ -49,6 +53,11 @@ const TagAttrs = types.model({
 
   pointsize: types.optional(types.string, "small"),
   pointstyle: types.optional(types.string, "circle"),
+  pointopacity: types.optional(types.string, "1"),
+  highlightcolor: types.maybeNull(customTypes.color),
+
+  fixedpoints: types.maybeNull(types.string),
+  outerratio: types.maybeNull(types.string),
 });
 
 const Validation = types.model({
@@ -64,6 +73,30 @@ const Model = types
   })
   .volatile(() => ({
     toolNames: ["Polygon"],
+  }))
+  .views((self) => ({
+    // Fixed vertex count (auto-close at N, no insert/delete), or null when free-form.
+    get fixedPoints() {
+      const n = Number.parseInt(self.fixedpoints, 10);
+
+      return Number.isInteger(n) && n >= 3 ? n : null;
+    },
+    // Outer/inner ratio of the dashed projected quad drawn for 4-point polygons, or null.
+    get outerRatio() {
+      const r = Number.parseFloat(self.outerratio);
+
+      return Number.isFinite(r) && r > 0 && r !== 1 ? r : null;
+    },
+    // Handle-point opacity in [0, 1] (1 = opaque, the upstream look).
+    get pointOpacity() {
+      const o = Number.parseFloat(self.pointopacity);
+
+      return Number.isFinite(o) ? Math.min(Math.max(o, 0), 1) : 1;
+    },
+    // Stroke color for the selected polygon, or null for the app-wide highlight color.
+    get highlightColor() {
+      return self.highlightcolor ?? null;
+    },
   }))
   .actions((self) => {
     return {

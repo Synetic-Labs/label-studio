@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { inject, observer } from "mobx-react";
+import { IconTrash, IconUndo } from "@humansignal/icons";
 
 import { useWindowSize } from "../../common/Utils/useWindowSize";
 import { cn } from "../../utils/bem";
@@ -42,10 +43,12 @@ export const Toolbar = inject("store")(
       }, {});
 
     const smartTools = tools.filter((t) => t.dynamic);
+    const annotation = store.annotationStore?.selected;
 
     return (
       <ToolbarProvider value={{ expanded, alignment }}>
         <div ref={(el) => setToolbar(el)} className={cn("toolbar").mod({ alignment, expanded }).toClassName()}>
+          {annotation && <UndoTool annotation={annotation} />}
           {Object.entries(toolGroups).map(([name, tools], i) => {
             const visibleTools = tools.filter((t) => t.viewClass);
 
@@ -62,11 +65,39 @@ export const Toolbar = inject("store")(
             ) : null;
           })}
           {store.autoAnnotation && <SmartTools tools={smartTools} />}
+          {annotation && <DeleteRegionTool annotation={annotation} />}
         </div>
       </ToolbarProvider>
     );
   }),
 );
+
+// Undo the last change (points while drawing, moves, deletions) — a button for touch,
+// where Ctrl+Z is not available.
+const UndoTool = observer(({ annotation }) => (
+  <div className={cn("toolbar").elem("group").toClassName()}>
+    <Tool
+      icon={<IconUndo />}
+      ariaLabel="undo"
+      label="Undo"
+      disabled={annotation.isReadOnly() || !annotation.history?.canUndo}
+      onClick={() => annotation.undo()}
+    />
+  </div>
+));
+
+// Delete the currently selected region(s).
+const DeleteRegionTool = observer(({ annotation }) => (
+  <div className={cn("toolbar").elem("group").toClassName()}>
+    <Tool
+      icon={<IconTrash />}
+      ariaLabel="delete-region"
+      label="Delete selected region"
+      disabled={annotation.isReadOnly() || !annotation.selectedRegions.length}
+      onClick={() => annotation.deleteSelectedRegions()}
+    />
+  </div>
+));
 
 const SmartTools = observer(({ tools }) => {
   const [selectedIndex, setSelectedIndex] = useState(

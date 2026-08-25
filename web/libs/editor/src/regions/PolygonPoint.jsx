@@ -110,7 +110,7 @@ const PolygonPointModel = types
         large: 4,
       };
 
-      const scale = scaleMap[self.size];
+      const scale = scaleMap[self.size] ?? 1.5;
 
       startPoint.scale({
         x: scale / self.stage.zoomScale,
@@ -152,7 +152,9 @@ const PolygonPointView = observer(({ item, name }) => {
   if (!item.parent) return;
 
   const [draggable, setDraggable] = useState(true);
-  const regionStyles = useRegionStyles(item.parent);
+  const regionStyles = useRegionStyles(item.parent, {
+    defaultStrokeColorHighlighted: item.parent.highlightColor,
+  });
   const sizes = {
     small: 4,
     medium: 8,
@@ -165,7 +167,10 @@ const PolygonPointView = observer(({ item, name }) => {
     large: 3,
   };
 
-  const w = sizes[item.size];
+  // `pointSize` is small|medium|large or a number: the handle radius in screen px.
+  const w = sizes[item.size] ?? (Number.parseFloat(item.size) || sizes.small);
+  const strokeW = stroke[item.size] ?? 2;
+  const opacity = item.parent.pointOpacity;
 
   const startPointAttr =
     item.index === 0
@@ -288,8 +293,9 @@ const PolygonPointView = observer(({ item, name }) => {
         y={item.canvasY}
         radius={w}
         fill={fill}
+        opacity={opacity}
         stroke="black"
-        strokeWidth={stroke[item.size]}
+        strokeWidth={strokeW}
         dragOnTop={false}
         strokeScaleEnabled={false}
         perfectDrawEnabled={false}
@@ -320,8 +326,9 @@ const PolygonPointView = observer(({ item, name }) => {
       width={w}
       height={w}
       fill={fill}
+      opacity={opacity}
       stroke="black"
-      strokeWidth={stroke[item.size]}
+      strokeWidth={strokeW}
       strokeScaleEnabled={false}
       perfectDrawEnabled={false}
       shadowForStrokeEnabled={false}

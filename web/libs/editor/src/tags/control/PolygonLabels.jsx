@@ -35,9 +35,24 @@ import ControlBase from "./Base";
  * @param {string} [fillColor]                      - Polygon fill color in hexadecimal
  * @param {string} [strokeColor]                    - Stroke color in hexadecimal
  * @param {number} [strokeWidth=1]                  - Width of stroke
- * @param {small|medium|large} [pointSize=medium]   - Size of polygon handle points
+ * @param {small|medium|large|number} [pointSize=medium] - Size of polygon handle points (a number is the radius in screen px, e.g. `18` for touch)
+ * @param {number} [pointOpacity=1]                  - Opacity of the handle points (0-1)
  * @param {rectangle|circle} [pointStyle=rectangle] - Style of points
+ * @param {string} [highlightColor=red]              - Stroke color of the selected polygon (and its dashed outer quad)
  * @param {pixel|none} [snap=none]                  - Snap polygon to image pixels
+ * @param {number} [fixedPoints]                     - Fixed number of vertices (>= 3): the polygon closes automatically after the Nth point and vertices cannot be added or removed (e.g. `4` for quads)
+ * @param {number} [outerRatio]                      - For 4-point polygons, draw a dashed outer quad: the perspective (homography) projection of the quad scaled by this ratio about its centre (e.g. `1.8` = a racing gate's outer frame predicted from its inner opening)
+ * @example
+ * <!--Drone-racing gates: tap the four inner corners of each gate; the polygon closes itself on the 4th
+ *     corner and a dashed outer frame is projected from them, so a corner grabbed on the wrong plane
+ *     shows up immediately. Label as many gates per image as needed. -->
+ * <View>
+ *   <Image name="image" value="$image" zoom="true" />
+ *   <PolygonLabels name="gate" toName="image" fixedPoints="4" outerRatio="1.8"
+ *                  pointSize="18" pointOpacity="0.6" highlightColor="#00C8FF">
+ *     <Label value="add gate" alias="gate" background="#39FF14" />
+ *   </PolygonLabels>
+ * </View>
  */
 
 const Validation = types.model({

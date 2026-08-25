@@ -10,7 +10,6 @@ import {
   interfacesAtom,
   annotationAtom,
   sampleTaskAtom,
-  displayModeAtom,
 } from "../../atoms/configAtoms";
 import { onSnapshot } from "mobx-state-tree";
 
@@ -30,16 +29,21 @@ export const PreviewPanel: FC<PreviewPanelProps> = memo(
     const interfaces = useAtomValue(interfacesAtom);
     const setAnnotation = useSetAtom(annotationAtom);
     const setSampleTask = useSetAtom(sampleTaskAtom);
-    const displayMode = useAtomValue(displayModeAtom);
     const [showPreview, setShowPreview] = useAtom(showPreviewAtom);
     const rootRef = useRef<HTMLDivElement>(null);
     const lsfInstance = useRef<any>(null);
     const rafId = useRef<number | null>(null);
+    // Each effect run gets a generation number; async steps of an older run bail out
+    // once a newer run has started, so two LabelStudio instances never race for the
+    // same root (the config/interfaces atoms settle in several quick updates on load).
+    const runId = useRef(0);
 
     useEffect(() => {
       let LabelStudio: any;
       let dependencies: any;
       let snapshotDisposer: any;
+      const generation = ++runId.current;
+      const isStale = () => generation !== runId.current;
 
       function cleanup() {
         if (typeof window !== "undefined" && (window as any).LabelStudio) {
@@ -66,14 +70,17 @@ export const PreviewPanel: FC<PreviewPanelProps> = memo(
 
       async function loadLSF() {
         dependencies = await import("@humansignal/editor");
+        if (isStale()) return;
         LabelStudio = dependencies.LabelStudio;
         if (!LabelStudio) return;
         cleanup();
         setShowPreview(true);
         const sampleTask = await generateSampleTaskFromConfig(config);
+        if (isStale()) return;
         setSampleTask(sampleTask);
 
         setTimeout(() => {
+          if (isStale() || !rootRef.current) return;
           lsfInstance.current = new LabelStudio(rootRef.current, {
             config,
             task: sampleTask,
@@ -84,12 +91,13 @@ export const PreviewPanel: FC<PreviewPanelProps> = memo(
             settings: {
               forceBottomPanel: true,
               collapsibleBottomPanel: true,
-              // Default collapsed in all,preview-inline, but not in preview
-              defaultCollapsedBottomPanel: displayMode !== "preview",
+              // Start collapsed everywhere (the panel covers most of a phone screen)
+              defaultCollapsedBottomPanel: true,
               fullscreen: false,
             },
             onStorageInitialized: (LS: any) => {
               const initAnnotation = () => {
+                if (isStale()) return;
                 const as = LS.annotationStore;
                 const c = as.createAnnotation();
                 as.selectAnnotation(c.id);
