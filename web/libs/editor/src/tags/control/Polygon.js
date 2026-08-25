@@ -34,6 +34,7 @@ const hotkeys = Hotkey("Polygons");
  * @param {number} [pointOpacity=1]                - Opacity of the handle points (0-1)
  * @param {rectangle|circle} [pointStyle=circle]  - Style of points
  * @param {string} [highlightColor=red]            - Stroke color of the selected polygon (and its dashed outer quad)
+ * @param {string} [outerFill]                     - With `outerRatio`: fill the band between the polygon and the projected outer quad with this color (uses `opacity`) instead of filling the polygon
  * @param {boolean} [smart]                       - Show smart tool for interactive pre-annotations
  * @param {boolean} [smartOnly]                   - Only show smart tool for interactive pre-annotations
  * @param {pixel|none} [snap=none]                - Snap polygon to image pixels
@@ -55,6 +56,7 @@ const TagAttrs = types.model({
   pointstyle: types.optional(types.string, "circle"),
   pointopacity: types.optional(types.string, "1"),
   highlightcolor: types.maybeNull(customTypes.color),
+  outerfill: types.maybeNull(customTypes.color),
 
   fixedpoints: types.maybeNull(types.string),
   outerratio: types.maybeNull(types.string),
@@ -96,6 +98,11 @@ const Model = types
     // Stroke color for the selected polygon, or null for the app-wide highlight color.
     get highlightColor() {
       return self.highlightcolor ?? null;
+    },
+    // With `outerRatio`: fill color of the BAND between the polygon and its projected outer
+    // quad (the physical frame), instead of the polygon's interior. `opacity` applies.
+    get outerFill() {
+      return self.outerfill ?? null;
     },
   }))
   .actions((self) => {

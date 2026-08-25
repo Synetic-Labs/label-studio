@@ -5,7 +5,6 @@ import { types } from "mobx-state-tree";
 import BaseTool from "./Base";
 import ToolMixin from "../mixins/Tool";
 import { Tool } from "../components/Toolbar/Tool";
-import { FlyoutMenu } from "../components/Toolbar/FlyoutMenu";
 import { IconExpandTool, IconHandTool, IconZoomIn, IconZoomOut } from "@humansignal/icons";
 
 const ToolView = observer(({ item }) => {
@@ -24,6 +23,15 @@ const ToolView = observer(({ item }) => {
         }}
       />
       <Tool
+        icon={<IconExpandTool />}
+        ariaLabel="zoom-toggle"
+        label={item.obj?.zoomScale === 1 ? "Zoom to actual size" : "Zoom to fit"}
+        shortcut="tool:zoom-to-fit"
+        onClick={() => {
+          item.toggleZoomPreset();
+        }}
+      />
+      <Tool
         icon={<IconZoomIn />}
         ariaLabel="zoom-in"
         label="Zoom In"
@@ -31,25 +39,6 @@ const ToolView = observer(({ item }) => {
         onClick={() => {
           item.handleZoom(1);
         }}
-      />
-      <FlyoutMenu
-        icon={<IconExpandTool />}
-        items={[
-          {
-            label: "Zoom to fit",
-            shortcut: "tool:zoom-to-fit",
-            onClick: () => {
-              item.sizeToFit();
-            },
-          },
-          {
-            label: "Zoom to actual size",
-            shortcut: "tool:zoom-to-actual",
-            onClick: () => {
-              item.sizeToOriginal();
-            },
-          },
-        ]}
       />
       <Tool
         icon={<IconZoomOut />}
@@ -140,6 +129,12 @@ const _Tool = types
       const item = self.obj;
 
       item.sizeToFit();
+    },
+
+    // One button instead of a flyout: fit-to-view when zoomed, actual pixel size when fitted.
+    toggleZoomPreset() {
+      if (self.obj.zoomScale === 1) self.sizeToOriginal();
+      else self.sizeToFit();
     },
 
     sizeToAuto() {

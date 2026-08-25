@@ -11,10 +11,13 @@
   user-select: none;
   position: absolute;
   bottom: 0;
+  min-width: 0;
+  overflow: hidden;
 
   &__group {
     display: flex;
     align-items: stretch;
+    min-width: 0;
   }
 
   &__section {

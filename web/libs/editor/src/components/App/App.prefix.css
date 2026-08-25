@@ -31,10 +31,10 @@ body {
 }
 
 @media (width <= 760px) {
-  /* phone */
+  /* phone: the editor takes the whole width (upstream pinned it to a 300px column) */
   .editor {
-    width: 300px;
-    min-width: 300px;
+    width: 100%;
+    min-width: 0;
   }
 }
 

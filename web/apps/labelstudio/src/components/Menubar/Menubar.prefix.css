@@ -136,3 +136,35 @@
   border-radius: 50%;
   background: var(--primary_link);
 }
+
+/* Narrow screens (phones): drop the logo and the hotkeys button, hide the page's own
+   right-hand context actions (Settings lives in the sidebar) and tighten the breadcrumbs. */
+@media (max-width: 720px) {
+  .menu-header {
+    &__logo,
+    &__hotkeys,
+    &__context-item_right {
+      display: none;
+    }
+
+    /* just the hamburger, not the 240px logo bay */
+    &__trigger {
+      min-width: 0;
+      max-width: none;
+      padding: 0 var(--spacing-base);
+    }
+
+    &__context {
+      padding-left: var(--spacing-tight);
+      min-width: 0;
+      overflow: hidden;
+    }
+  }
+}
+
+.menu-header__theme-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+}

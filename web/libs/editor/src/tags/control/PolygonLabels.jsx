@@ -39,6 +39,7 @@ import ControlBase from "./Base";
  * @param {number} [pointOpacity=1]                  - Opacity of the handle points (0-1)
  * @param {rectangle|circle} [pointStyle=rectangle] - Style of points
  * @param {string} [highlightColor=red]              - Stroke color of the selected polygon (and its dashed outer quad)
+ * @param {string} [outerFill]                       - With `outerRatio`: fill the band between the polygon and the projected outer quad with this color (uses `opacity`) instead of filling the polygon
  * @param {pixel|none} [snap=none]                  - Snap polygon to image pixels
  * @param {number} [fixedPoints]                     - Fixed number of vertices (>= 3): the polygon closes automatically after the Nth point and vertices cannot be added or removed (e.g. `4` for quads)
  * @param {number} [outerRatio]                      - For 4-point polygons, draw a dashed outer quad: the perspective (homography) projection of the quad scaled by this ratio about its centre (e.g. `1.8` = a racing gate's outer frame predicted from its inner opening)
@@ -48,8 +49,8 @@ import ControlBase from "./Base";
  *     shows up immediately. Label as many gates per image as needed. -->
  * <View>
  *   <Image name="image" value="$image" zoom="true" />
- *   <PolygonLabels name="gate" toName="image" fixedPoints="4" outerRatio="1.8"
- *                  pointSize="18" pointOpacity="0.6" highlightColor="#00C8FF">
+ *   <PolygonLabels name="gate" toName="image" fixedPoints="4" outerRatio="1.8" outerFill="#3D5AFE" opacity="0.45"
+ *                  pointSize="18" pointOpacity="0.6" highlightColor="#FF00FF">
  *     <Label value="add gate" alias="gate" background="#39FF14" />
  *   </PolygonLabels>
  * </View>

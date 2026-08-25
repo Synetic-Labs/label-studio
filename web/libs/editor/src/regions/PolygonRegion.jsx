@@ -1,9 +1,10 @@
 import { getCurrentTheme, getTokenColor } from "@humansignal/ui";
+import chroma from "chroma-js";
 import Konva from "konva";
 import { observer } from "mobx-react";
 import { destroy, detach, getRoot, isAlive, types } from "mobx-state-tree";
 import { memo, useContext, useEffect, useMemo } from "react";
-import { Circle, Group, Line } from "react-konva";
+import { Circle, Group, Line, Shape } from "react-konva";
 import { ImageViewContext } from "../components/ImageView/ImageViewContext";
 import { LabelOnPolygon } from "../components/ImageView/LabelOnRegion";
 import Constants from "../core/Constants";
@@ -74,6 +75,19 @@ const Model = types
     // Stroke color when selected (control attribute `highlightColor`, else app-wide).
     get highlightColor() {
       return self.control?.highlightColor ?? Constants.HIGHLIGHTED_STROKE_COLOR;
+    },
+    // Band (frame) fill between the polygon and its projected outer quad; null = fill the
+    // polygon interior as usual.
+    get outerFillColor() {
+      if (!self.outerRatio) return null;
+      const color = self.control?.outerFill;
+
+      if (!color) return null;
+      const opacity = Number.parseFloat(self.control?.opacity);
+
+      return chroma(color)
+        .alpha(Number.isFinite(opacity) ? opacity : 0.3)
+        .css();
     },
     // The dashed outer quad predicted from a 4-point polygon, in internal coords.
     get outerQuad() {
@@ -633,6 +647,39 @@ const PolygonOuterQuad = observer(({ item, regionStyles }) => {
   );
 });
 
+/**
+ * Filled band between the 4-point polygon and its projected outer quad — i.e. the physical
+ * frame of a gate. Drawn as one path with the inner polygon as a hole (reverse winding, so
+ * the non-zero fill rule leaves the opening clear). Part of the region's hit area, so
+ * tapping the frame selects the gate while the opening stays tap-through.
+ */
+const PolygonBand = observer(({ item }) => {
+  const fill = item.outerFillColor;
+  const outer = item.outerQuad;
+
+  if (!fill || !outer || item.points.length !== 4) return null;
+
+  const inner = item.points.map((p) => [p.canvasX, p.canvasY]);
+  const outerCanvas = outer.map(([x, y]) => [item.parent.internalToCanvasX(x), item.parent.internalToCanvasY(y)]);
+
+  return (
+    <Shape
+      name="gate-band"
+      fill={fill}
+      perfectDrawEnabled={false}
+      shadowForStrokeEnabled={false}
+      sceneFunc={(ctx, shape) => {
+        ctx.beginPath();
+        outerCanvas.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        [...inner].reverse().forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        ctx.fillStrokeShape(shape);
+      }}
+    />
+  );
+});
+
 const HtxPolygonView = ({ item, setShapeRef }) => {
   const { store } = item;
   const { suggestion } = useContext(ImageViewContext) ?? {};
@@ -640,7 +687,10 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
   const regionStyles = useRegionStyles(item, {
     useStrokeAsFill: true,
     defaultStrokeColorHighlighted: item.highlightColor,
+    sameStrokeWidthForSelected: true,
   });
+  // With a band fill the polygon interior (the gate opening) stays clear and tap-through.
+  const polyColors = item.outerFillColor ? { ...regionStyles, fillColor: null } : regionStyles;
 
   function renderCircle({ points, idx }) {
     const name = `anchor_${points.length}_${idx}`;
@@ -764,10 +814,11 @@ const HtxPolygonView = ({ item, setShapeRef }) => {
 
       {item.mouseOverStartPoint}
 
+      {item.points && item.closed ? <PolygonBand item={item} /> : null}
       {item.points && item.closed ? (
         <Poly
           item={item}
-          colors={regionStyles}
+          colors={polyColors}
           dragProps={dragProps}
           draggable={!item.isReadOnly() && item.inSelection && item.parent?.selectedRegions?.length > 1}
         />

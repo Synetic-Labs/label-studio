@@ -154,6 +154,7 @@ const PolygonPointView = observer(({ item, name }) => {
   const [draggable, setDraggable] = useState(true);
   const regionStyles = useRegionStyles(item.parent, {
     defaultStrokeColorHighlighted: item.parent.highlightColor,
+    sameStrokeWidthForSelected: true,
   });
   const sizes = {
     small: 4,

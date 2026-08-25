@@ -1,18 +1,16 @@
-import { InfoIcon, SlidersHorizontalIcon } from "@humansignal/icons";
+import { InfoIcon } from "@humansignal/icons";
 import { Button } from "@humansignal/ui";
 import { isStarterCloudPlan } from "@humansignal/core";
 import { cn } from "../../utils/bem";
 import { AutoAcceptToggle } from "../AnnotationTab/AutoAcceptToggle";
 import { DynamicPreannotationsToggle } from "../AnnotationTab/DynamicPreannotationsToggle";
 import { GroundTruth } from "../CurrentEntity/GroundTruth";
-import { EditingHistory } from "./HistoryActions";
 import { ProjectCoursesBottomBarButton } from "./ProjectCoursesBottomBarButton";
 import "./Actions.prefix.css";
 
 export const Actions = ({ store }) => {
   const annotationStore = store.annotationStore;
   const entity = annotationStore.selected;
-  const isPrediction = entity?.type === "prediction";
   const isViewAll = annotationStore.viewingAll === true;
   const isBulkMode = !isStarterCloudPlan() && store.hasInterface("annotation:bulk");
   const hideInstructionsForCourses = store.hideInstructionsForCourses === true;
@@ -20,8 +18,6 @@ export const Actions = ({ store }) => {
 
   return (
     <div className={cn("bottombar").elem("section").toClassName()}>
-      {!isPrediction && !isViewAll && store.hasInterface("edit-history") && <EditingHistory entity={entity} />}
-
       <div className={cn("action-buttons").toClassName()}>
         <ProjectCoursesBottomBarButton store={store} />
         {showInstructions && (
@@ -38,18 +34,6 @@ export const Actions = ({ store }) => {
             data-testid="bottombar-instructions-button"
           />
         )}
-        <Button
-          type="text"
-          aria-label="Settings"
-          size="small"
-          look="string"
-          variant="neutral"
-          onClick={() => store.toggleSettings()}
-          tooltip="Settings"
-          className="aspect-square"
-          leading={<SlidersHorizontalIcon size={24} />}
-          data-testid="bottombar-settings-button"
-        />
       </div>
 
       {store.hasInterface("ground-truth") && !isBulkMode && <GroundTruth entity={entity} />}

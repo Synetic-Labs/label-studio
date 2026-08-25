@@ -337,6 +337,8 @@ export default types
      * Function
      */
     function afterCreate() {
+      // The host app's user menu opens the labelling settings via this DOM event.
+      window.addEventListener?.("lsf:toggle-settings", self.toggleSettings);
       ToolsManager.setRoot(self);
 
       // important thing to detect Area atomatically: it hasn't access to store, only via global
@@ -1178,6 +1180,7 @@ export default types
       postponeTask,
       incrementQueuePosition,
       beforeDestroy() {
+        window.removeEventListener?.("lsf:toggle-settings", self.toggleSettings);
         ToolsManager.removeAllTools();
       },
 

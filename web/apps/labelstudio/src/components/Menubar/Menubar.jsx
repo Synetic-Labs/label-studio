@@ -12,6 +12,8 @@ import {
   IconDoor,
   IconGithub,
   IconSlack,
+  IconSettings,
+  SlidersHorizontalIcon,
 } from "@humansignal/icons";
 import { LSLogo } from "../../assets/images";
 import { Button, Userpic, ThemeToggle } from "@humansignal/ui";
@@ -72,6 +74,9 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
   const contentClass = cn("content-wrapper");
   const contextItem = menubarClass.elem("context-item");
   const showNewsletterDot = !isDefined(user?.allow_newsletters);
+  // Project-level entry for the sidebar (the header's own Settings link is hidden on
+  // narrow screens, see Menubar.prefix.css).
+  const projectId = location.pathname.match(/^\/projects\/(\d+)/)?.[1];
 
   const sidebarPin = useCallback(
     (e) => {
@@ -172,8 +177,6 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
             </div>
           </div>
 
-          {ff.isActive(ff.FF_THEME_TOGGLE) && <ThemeToggle />}
-
           <Dropdown.Trigger
             ref={useMenuRef}
             align="right"
@@ -184,7 +187,18 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                   label="Account &amp; Settings"
                   href={pages.AccountSettingsPage.path}
                 />
-                {/* <Menu.Item label="Dark Mode"/> */}
+                <Menu.Item
+                  icon={<SlidersHorizontalIcon />}
+                  label="Labelling Settings"
+                  onClick={() => window.dispatchEvent(new CustomEvent("lsf:toggle-settings"))}
+                />
+                {ff.isActive(ff.FF_THEME_TOGGLE) && (
+                  <Menu.Item className={menubarClass.elem("theme-item").toClassName()}>
+                    <span>Theme</span>
+                    <ThemeToggle />
+                  </Menu.Item>
+                )}
+                <Menu.Divider />
                 <Menu.Item icon={<IconDoor />} label="Log Out" href={absoluteURL("/logout")} data-external />
                 {showNewsletterDot && (
                   <>
@@ -224,6 +238,14 @@ export const Menubar = ({ enabled, defaultOpened, defaultPinned, children, onSid
                 <Menu.Item label="Home" to="/" icon={<IconHome />} data-external exact />
                 <Menu.Item label="Projects" to="/projects" icon={<IconFolder />} data-external exact />
                 <Menu.Item label="Organization" to="/organization" icon={<IconPeople />} data-external exact />
+                {projectId && (
+                  <Menu.Item
+                    label="Project Settings"
+                    to={`/projects/${projectId}/settings`}
+                    icon={<IconSettings />}
+                    data-external
+                  />
+                )}
 
                 <Menu.Spacer />
 

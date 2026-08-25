@@ -11,7 +11,10 @@
     align-items: center;
 
     & .button {
-      width: 160px;
+      width: auto;
+      min-width: 96px;
+      max-width: 160px;
+      padding: 0 var(--spacing-base);
       height: 40px;
       font-size: 16px;
       line-height: 24px;
@@ -32,7 +35,9 @@
       background: var(--color-primary-surface);
       box-shadow: 0 4px 4px 0 rgb(var(--color-neutral-shadow-raw) / 25%);
       display: flex;
-      width: 160px;
+      width: auto;
+      min-width: 96px;
+      max-width: 160px;
       height: 40px;
       justify-content: center;
       align-items: center;

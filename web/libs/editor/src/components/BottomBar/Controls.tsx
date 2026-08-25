@@ -9,8 +9,7 @@ import type React from "react";
 import { useCallback, useState } from "react";
 
 import { Button, ButtonGroup, type ButtonProps } from "@humansignal/ui";
-import { CaretDownIcon, IconBan, IconChevronDown } from "@humansignal/icons";
-import { Dropdown } from "@humansignal/ui";
+import { IconBan } from "@humansignal/icons";
 import type { CustomButtonType } from "../../stores/CustomButton";
 import { cn } from "../../utils/bem";
 import { FF_REVIEWER_FLOW, FF_FIT_1304_STRICT_OVERLAP, isFF } from "../../utils/feature-flags";
@@ -58,7 +57,7 @@ const ControlButton = observer(({ button, disabled, onClick, variant, look }: Co
       variant={button.variant ?? variant}
       look={button.look ?? look}
       tooltip={button.tooltip}
-      className="w-[150px]"
+      className="min-w-[96px]"
       aria-label={button.ariaLabel}
       disabled={button.disabled || disabled}
       onClick={onClick}
@@ -72,7 +71,6 @@ const ControlButton = observer(({ button, disabled, onClick, variant, look }: Co
 export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
   observer(({ store, history, annotation }) => {
     const isReview = store.hasInterface("review") || annotation.canBeReviewed;
-    const isNotQuickView = store.hasInterface("topbar:prevnext");
     const historySelected = isDefined(store.annotationStore.selectedHistory);
     const {
       userGenerate,
@@ -86,7 +84,6 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
     // Accept/Reject (Fix+Accept from the wrong view). It must NOT disable annotator Update
     // (BROS-1477 / QA 93973 — that worked on 2.34 when only historySelected blocked actions).
     const viewingSubmittedWhileDraftExists = !historySelected && Boolean(versions?.draft) && !draftSelected;
-    const dropdownTrigger = cn("dropdown").elem("trigger").toClassName();
     const customButtons: CustomButtonsField = store.customButtons;
     const buttons: React.ReactNode[] = [];
 
@@ -214,43 +211,8 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
       // Also disable when overlap is reached (only when feature flag is enabled)
       const overlapDisabled = isFF(FF_FIT_1304_STRICT_OVERLAP) && store.overlapReached === true;
       const isDisabled = disabled || submitDisabled || overlapDisabled || hasIncompleteRegions;
-
-      const useExitOption = !isDisabled && isNotQuickView;
-
-      const SubmitOption = ({ isUpdate, onClickMethod }: { isUpdate: boolean; onClickMethod: () => any }) => {
-        return (
-          <div className="p-tighter rounded">
-            <Button
-              name="submit-option"
-              look="string"
-              size="small"
-              className="w-[150px]"
-              onClick={async (event) => {
-                event.preventDefault();
-
-                const selected = store.annotationStore?.selected;
-
-                selected?.submissionInProgress();
-
-                if ("URLSearchParams" in window) {
-                  const searchParams = new URLSearchParams(window.location.search);
-
-                  searchParams.set("exitStream", "true");
-                  const newRelativePathQuery = `${window.location.pathname}?${searchParams.toString()}`;
-
-                  window.history.pushState(null, "", newRelativePathQuery);
-                }
-
-                await store.commentStore.commentFormSubmit();
-                onClickMethod();
-              }}
-              data-testid={`bottombar-${isUpdate ? "update" : "submit"}-and-exit-button`}
-            >
-              {`${isUpdate ? "Update" : "Submit"} and exit`}
-            </Button>
-          </div>
-        );
-      };
+      // Note: the upstream "Submit/Update and exit" split-button popup was removed on purpose —
+      // a single Submit button that stays reachable on narrow screens.
 
       if (userGenerate || (store.explore && !userGenerate && store.hasInterface("submit"))) {
         const title = hasIncompleteRegions
@@ -268,10 +230,9 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                 <Button
                   aria-label="Submit current annotation"
                   name="submit"
-                  className="w-[150px]"
+                  className="min-w-[96px]"
                   disabled={isDisabled}
-                  onClick={async (event) => {
-                    if ((event.target as HTMLButtonElement).classList.contains(dropdownTrigger)) return;
+                  onClick={async () => {
                     const selected = store.annotationStore?.selected;
 
                     selected?.submissionInProgress();
@@ -282,23 +243,6 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                 >
                   Submit
                 </Button>
-                {useExitOption ? (
-                  <Dropdown.Trigger
-                    alignment="top-right"
-                    content={
-                      <div className="p-tight bg-neutral-surface">
-                        <SubmitOption onClickMethod={store.submitAnnotation} isUpdate={false} />
-                      </div>
-                    }
-                  >
-                    <Button
-                      disabled={isDisabled}
-                      aria-label="Submit annotation"
-                      data-testid="bottombar-submit-dropdown"
-                      leading={<CaretDownIcon size={24} />}
-                    />
-                  </Dropdown.Trigger>
-                ) : null}
               </ButtonGroup>
             </div>
           </ButtonTooltip>,
@@ -322,10 +266,9 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                 <Button
                   aria-label="submit"
                   name="submit"
-                  className="w-[150px]"
+                  className="min-w-[96px]"
                   disabled={isUpdateDisabled}
-                  onClick={async (event) => {
-                    if ((event.target as HTMLButtonElement).classList.contains(dropdownTrigger)) return;
+                  onClick={async () => {
                     const selected = store.annotationStore?.selected;
 
                     selected?.submissionInProgress();
@@ -336,20 +279,6 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                 >
                   {isUpdate ? "Update" : "Submit"}
                 </Button>
-                {useExitOption ? (
-                  <Dropdown.Trigger
-                    alignment="top-right"
-                    content={<SubmitOption onClickMethod={store.updateAnnotation} isUpdate={isUpdate} />}
-                  >
-                    <Button
-                      disabled={isUpdateDisabled}
-                      aria-label="Update annotation"
-                      data-testid="bottombar-update-dropdown"
-                    >
-                      <IconChevronDown />
-                    </Button>
-                  </Dropdown.Trigger>
-                ) : null}
               </ButtonGroup>
             </div>
           </ButtonTooltip>

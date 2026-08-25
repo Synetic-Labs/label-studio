@@ -148,3 +148,31 @@
     opacity: 0.23;
   }
 }
+
+/* Narrow screens: only the last two crumbs fit, the rest is reachable via the sidebar. */
+@media (max-width: 720px) {
+  .breadcrumbs,
+  .breadcrumbs__list,
+  .breadcrumbs__item,
+  .breadcrumbs__link {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .breadcrumbs__item:not(:nth-last-child(-n + 2)) {
+    display: none;
+  }
+
+  /* the separator belongs to the following crumb — the first visible one must not show it */
+  .breadcrumbs__item:nth-last-child(2)::before {
+    display: none;
+  }
+
+  .breadcrumbs__label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 34vw;
+  }
+}
