@@ -30,6 +30,7 @@
     grid-area: id;
     color: var(--color-neutral-content);
     user-select: text;
+    white-space: nowrap;
 
     &::before {
       content: "#";
@@ -42,6 +43,7 @@
     grid-area: counter;
     color: var(--color-neutral-content);
     user-select: none;
+    white-space: nowrap;
   }
 
   &__history-controls {

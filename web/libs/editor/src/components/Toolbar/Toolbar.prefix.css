@@ -7,11 +7,12 @@
     0 5px 10px rgb(0 0 0 / 10%);
   border-radius: 7px;
 
-  /* Float over the image's top-right corner instead of sitting beside the canvas
+  /* Float over the image's bottom-right corner instead of sitting beside the canvas
      (which stole ~42px of width from the image on phones). The wrapper is
-     `position: relative`, so this is anchored to the image object. */
+     `position: relative`, so this is anchored to the image object; bottom-right keeps
+     the tools under the thumb on a phone. */
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   right: 8px;
   z-index: 2;
 

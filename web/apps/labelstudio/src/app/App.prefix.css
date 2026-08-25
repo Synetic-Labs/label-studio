@@ -7,19 +7,31 @@ body {
   --menu-animation-start: -10px;
   --menu-sidebar-width: 240px;
 
+  /* Full-height layouts use this instead of 100vh. On mobile browsers 100vh is the
+     LARGE viewport (browser UI hidden), so a 100vh page is taller than what is visible
+     while the URL/toolbar is showing and anything pinned to the bottom (the Submit bar)
+     ends up under the browser chrome. dvh tracks the visible viewport. */
+  --viewport-height: 100vh;
+
   margin: 0;
   color: var(--color-neutral-content);
   background: var(--color-neutral-background);
   width: 100vw;
   max-width: 100%;
-  min-height: 100vh;
+  min-height: var(--viewport-height);
   scrollbar-color: var(--color-neutral-border-bold) var(--color-neutral-background);
+}
+
+@supports (height: 100dvh) {
+  body {
+    --viewport-height: 100dvh;
+  }
 }
 
 .app-wrapper {
   width: 100vw;
   max-width: 100%;
-  min-height: 100vh;
+  min-height: var(--viewport-height);
 }
 
 .global-error {

@@ -4,7 +4,7 @@
   position: fixed;
   z-index: 100 !important;
   top: var(--header-height);
-  height: calc(100vh - var(--header-height));
+  height: calc(var(--viewport-height) - var(--header-height));
   width: var(--menu-sidebar-width);
   background: none;
   transition: all 150ms ease-out;

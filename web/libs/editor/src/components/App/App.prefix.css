@@ -52,7 +52,9 @@ body {
   }
 
   &_showingBottomBar {
-    --bottombar-height: 50px;
+    /* + the device's bottom safe area (iOS home indicator / gesture bar when the page
+       runs edge-to-edge via viewport-fit=cover) so the Submit bar is never under it */
+    --bottombar-height: calc(50px + env(safe-area-inset-bottom, 0px));
   }
 
   &_annotationsSidebar {
