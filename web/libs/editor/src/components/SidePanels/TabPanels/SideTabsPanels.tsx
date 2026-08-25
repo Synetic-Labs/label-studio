@@ -51,6 +51,7 @@ import {
 } from "./utils";
 
 const maxWindowWidth = 980;
+const AUTO_BOTTOM_PANEL_MODE = false;
 const SideTabsPanelsComponent: FC<SidePanelsProps> = ({
   currentEntity,
   panelsHidden,
@@ -83,9 +84,13 @@ const SideTabsPanelsComponent: FC<SidePanelsProps> = ({
   localSnap.current = snap;
   useRegionsCopyPaste(currentEntity);
 
+  // The panels stay docked on the right at every width (collapsed to a narrow strip by
+  // default, see restorePanel) instead of jumping into the automatic bottom-panel mode
+  // below 980px — that mode read as "the panels vanished" on small screens. The bottom
+  // panel is still available when explicitly forced (e.g. the playground).
   const panelBreakPoint = useMemo(() => {
     if (settings?.forceBottomPanel) return true;
-    return viewportSizeMatch || screenSizeMatch.matches;
+    return AUTO_BOTTOM_PANEL_MODE && (viewportSizeMatch || screenSizeMatch.matches);
   }, [viewportSizeMatch, screenSizeMatch.matches, settings?.forceBottomPanel]);
 
   const updatePanel = useCallback(

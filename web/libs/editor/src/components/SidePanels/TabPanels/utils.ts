@@ -324,7 +324,9 @@ export const restorePanel = (showComments: boolean, showCustomTab: ShowCustomTab
   const previousState = window.localStorage.getItem("panelState");
   const parsed: StoredPanelState | null = previousState && JSON.parse(previousState);
   const panelData = parsed && parsed.panelData;
-  const defaultCollapsedSide = { [Side.left]: false, [Side.right]: false };
+  // Start with the right-hand panels (Regions/Info/…) collapsed: out of the way, one click
+  // to expand — matters most on phones, where an expanded panel eats most of the width.
+  const defaultCollapsedSide = { [Side.left]: false, [Side.right]: true };
   const collapsedSide = parsed?.collapsedSide ?? defaultCollapsedSide;
   const allTabs = panelData && Object.values(panelData).flatMap((panel) => panel.panelViews);
   // don't use comments and custom tabs anywhere if it's disabled

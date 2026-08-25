@@ -95,6 +95,23 @@ body {
 
   &__annotation {
     padding: 1em;
+
+    /* Flex column so the Image object (whose wrapper already has `flex: 1`) fills the
+       remaining height instead of sizing itself to the image's aspect ratio. On phones
+       that gives the zoomed image the whole vertical space; on desktop the existing
+       max-height cap binds first, so nothing changes. The first child is the root
+       <View> div, which has to pass the column through. */
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+
+    & > div:first-child {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
   }
 
   &__infobar {

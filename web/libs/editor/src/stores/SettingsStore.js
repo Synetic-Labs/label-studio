@@ -38,9 +38,7 @@ const SettingsModel = types
 
     bottomSidePanel: types.optional(types.boolean, false),
 
-    // Regions/History/… live in a collapsible bottom panel on every screen size, so the
-    // image keeps the full width (the right-hand panels vanish on narrow screens).
-    forceBottomPanel: types.optional(types.boolean, true),
+    forceBottomPanel: types.optional(types.boolean, false),
 
     collapsibleBottomPanel: types.optional(types.boolean, true),
 
